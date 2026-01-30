@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(python3 -m platformio:*)",
+      "Bash(pip3 show:*)"
+    ]
+  }
+}
