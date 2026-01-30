@@ -1,6 +1,7 @@
 #include "obd2.h"
 #include "can_bus.h"
 #include "config.h"
+#include "bt_serial.h"
 #include <Arduino.h>
 
 bool obd2_request(uint8_t pid) {
@@ -44,55 +45,69 @@ bool obd2_read_response(uint8_t &pid, uint8_t *data, uint8_t &data_len) {
     return true;
 }
 
+// Print to both Serial and Bluetooth (if connected).
+static void dual_printf(const char *fmt, ...) {
+    char buf[128];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+
+    Serial.print(buf);
+    if (bt_connected()) {
+        SerialBT.print(buf);
+    }
+}
+
 void obd2_print_value(uint8_t pid, const uint8_t *data, uint8_t data_len) {
     switch (pid) {
         case PID_COOLANT_TEMP:
             if (data_len >= 1) {
                 int temp = (int)data[0] - 40;
-                Serial.printf("Coolant Temp:   %d °C\n", temp);
+                dual_printf("Coolant Temp:   %d °C\n", temp);
             }
             break;
 
         case PID_ENGINE_RPM:
             if (data_len >= 2) {
                 float rpm = ((uint16_t)data[0] * 256 + data[1]) / 4.0f;
-                Serial.printf("Engine RPM:     %.0f\n", rpm);
+                dual_printf("Engine RPM:     %.0f\n", rpm);
             }
             break;
 
         case PID_VEHICLE_SPEED:
             if (data_len >= 1) {
-                Serial.printf("Speed:          %d km/h\n", data[0]);
+                dual_printf("Speed:          %d km/h\n", data[0]);
             }
             break;
 
         case PID_INTAKE_AIR_TEMP:
             if (data_len >= 1) {
                 int temp = (int)data[0] - 40;
-                Serial.printf("Intake Air:     %d °C\n", temp);
+                dual_printf("Intake Air:     %d °C\n", temp);
             }
             break;
 
         case PID_THROTTLE_POS:
             if (data_len >= 1) {
                 float pct = data[0] * 100.0f / 255.0f;
-                Serial.printf("Throttle:       %.1f%%\n", pct);
+                dual_printf("Throttle:       %.1f%%\n", pct);
             }
             break;
 
         case PID_FUEL_LEVEL:
             if (data_len >= 1) {
                 float pct = data[0] * 100.0f / 255.0f;
-                Serial.printf("Fuel Level:     %.1f%%\n", pct);
+                dual_printf("Fuel Level:     %.1f%%\n", pct);
             }
             break;
 
         default:
-            Serial.printf("PID 0x%02X:       ", pid);
+            dual_printf("PID 0x%02X:       ", pid);
             for (uint8_t i = 0; i < data_len; i++) {
-                Serial.printf("%02X ", data[i]);
+                dual_printf("%02X ", data[i]);
             }
-            Serial.println();
+            dual_printf("\n");
             break;
     }
 }

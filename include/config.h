@@ -41,6 +41,9 @@ const uint8_t PIDS_TO_POLL[] = {
 };
 const uint8_t NUM_PIDS = sizeof(PIDS_TO_POLL) / sizeof(PIDS_TO_POLL[0]);
 
+// --- Bluetooth ---
+#define BT_DEVICE_NAME "BMW-F800GT-OBD"  // Nombre visible al emparejar
+
 // --- Timing ---
 #define POLL_INTERVAL_MS       1000  // Intervalo entre ciclos de lectura
 #define CAN_RECEIVE_TIMEOUT_MS 100   // Timeout para recibir respuesta CAN

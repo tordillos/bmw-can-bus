@@ -4,7 +4,7 @@ This file provides guidance for AI assistants working with this codebase.
 
 ## Project Overview
 
-ESP32-based OBD-II diagnostic reader for BMW F800GT motorcycles. Reads engine data via the CAN bus protocol using an MCP2515 CAN controller module and outputs human-readable values over serial.
+ESP32-based OBD-II diagnostic reader for BMW F800GT motorcycles. Reads engine data via the CAN bus protocol using an MCP2515 CAN controller module and outputs human-readable values over serial and Bluetooth SPP.
 
 **Target hardware:** ESP32 HW-395 (CP2102) + MCP2515/TJA1050 CAN transceiver module
 **Vehicle:** BMW F800GT (CAN bus at 500 kbps)
@@ -20,7 +20,9 @@ ESP32-based OBD-II diagnostic reader for BMW F800GT motorcycles. Reads engine da
 │   ├── can_bus.h            # CAN abstraction interface (init, send, receive)
 │   ├── can_bus.cpp          # MCP2515 driver via mcp_can library + SPI
 │   ├── obd2.h              # OBD-II protocol interface (request, read, print)
-│   └── obd2.cpp            # OBD-II frame construction, response parsing, value formatting
+│   ├── obd2.cpp            # OBD-II frame construction, response parsing, value formatting
+│   ├── bt_serial.h         # Bluetooth SPP interface (init, connection check)
+│   └── bt_serial.cpp       # Bluetooth Serial setup using ESP32 BluetoothSerial
 ├── platformio.ini           # PlatformIO build configuration
 ├── .gitignore
 └── README.md               # Hardware setup and usage guide (Spanish)
@@ -28,11 +30,12 @@ ESP32-based OBD-II diagnostic reader for BMW F800GT motorcycles. Reads engine da
 
 ## Architecture
 
-The code is layered into three levels:
+The code is layered into four levels:
 
 1. **CAN bus layer** (`can_bus.*`) -- Low-level MCP2515 communication via SPI. Handles init, send, and receive with timeout.
-2. **OBD-II protocol layer** (`obd2.*`) -- Constructs OBD-II mode 0x01 request frames, validates responses (CAN ID 0x7E8, service 0x41), and parses PID-specific data.
-3. **Application layer** (`main.cpp`) -- Iterates through configured PIDs, sends requests, reads responses, and prints formatted values on a 1-second polling cycle.
+2. **OBD-II protocol layer** (`obd2.*`) -- Constructs OBD-II mode 0x01 request frames, validates responses (CAN ID 0x7E8, service 0x41), and parses PID-specific data. Output goes to both Serial and Bluetooth via `dual_printf()`.
+3. **Bluetooth layer** (`bt_serial.*`) -- ESP32 Bluetooth Classic SPP. Exposes the device as a serial port that mobile apps can connect to. No additional hardware required.
+4. **Application layer** (`main.cpp`) -- Iterates through configured PIDs, sends requests, reads responses, and prints formatted values on a 1-second polling cycle.
 
 All configuration constants live in `include/config.h` -- pin definitions, CAN speed, OBD-II IDs, PID list, and timing values.
 
@@ -56,7 +59,7 @@ Build artifacts are stored in `.pio/` (gitignored).
 |---------|---------|---------|
 | `coryjfowler/mcp_can` | ^1.5.1 | MCP2515 CAN controller driver |
 
-Arduino core libraries (`SPI.h`, `Arduino.h`) are provided by the `espressif32` platform.
+Arduino core libraries (`SPI.h`, `Arduino.h`, `BluetoothSerial.h`) are provided by the `espressif32` platform.
 
 ## Hardware Pin Configuration
 
@@ -92,7 +95,9 @@ Configured in `config.h` via the `PIDS_TO_POLL` array:
   - `PID_*` prefix for OBD-II parameter IDs
   - `OBD2_*` prefix for OBD-II protocol constants
   - `CAN_*` prefix for CAN bus timing/speed constants
-  - Functions use `snake_case` (e.g., `can_init()`, `obd2_request()`)
+  - `BT_*` prefix for Bluetooth constants
+  - `bt_*` prefix for Bluetooth functions
+  - Functions use `snake_case` (e.g., `can_init()`, `obd2_request()`, `bt_init()`)
   - Constants and macros use `UPPER_SNAKE_CASE`
 - **Error handling:** Functions return `bool` for success/failure
 - **Parameter passing:** Output parameters use references (`uint8_t &len`); input buffers use `const` pointers
@@ -105,6 +110,7 @@ There are no automated tests. Verification is done manually via serial monitor o
 
 - **Without motorcycle connected:** All PID requests show "no response"
 - **With motorcycle connected:** Values print in human-readable format (e.g., `Coolant Temp: 85 degrees C`)
+- **Bluetooth:** Pair a mobile device with "BMW-F800GT-OBD" and open a Bluetooth serial terminal app to see the same output
 
 ## Key Technical Details
 
@@ -114,6 +120,8 @@ There are no automated tests. Verification is done manually via serial monitor o
 - Response parsing validates service byte (`0x41`) and clamps data length to 5 bytes max
 - Polling interval is 1000 ms between cycles, with 50 ms between individual PID requests and 100 ms receive timeout
 - The CAN interrupt pin is polled (not interrupt-driven) in the receive loop
+- Bluetooth uses ESP32 Classic SPP (Serial Port Profile); device name is configurable via `BT_DEVICE_NAME` in `config.h`
+- Bluetooth output is only sent when a client is connected (`bt_connected()` check); no overhead when disconnected
 
 ## Adding a New OBD-II PID
 
