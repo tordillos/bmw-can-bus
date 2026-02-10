@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-// Initialize the MCP2515 CAN controller. Returns true on success.
+// Initialize the ESP32 TWAI CAN controller. Returns true on success.
 bool can_init();
 
 // Send a CAN frame. Returns true on success.
