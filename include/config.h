@@ -1,19 +1,11 @@
 #pragma once
 
 #include <stdint.h>
+#include <driver/gpio.h>
 
-// --- SPI Pins (ESP32 -> MCP2515) ---
-// Same pin config as github.com/ianc99/BMW-GS-Wonder-Wheel-map-zoomer
-#define MCP2515_SCK_PIN  26
-#define MCP2515_MISO_PIN 14
-#define MCP2515_MOSI_PIN 27
-#define MCP2515_CS_PIN   12
-#define MCP2515_INT_PIN  25
-
-// --- CAN Bus Speed ---
-// BMW F800GT uses 500 kbps
-// MCP2515 crystal: 8 MHz (common on most modules)
-#define MCP2515_CRYSTAL MCP_8MHZ
+// --- CAN Bus Pins (ESP32 TWAI -> SN65HVD230) ---
+#define CAN_TX_PIN GPIO_NUM_4
+#define CAN_RX_PIN GPIO_NUM_5
 
 // --- OBD-II CAN IDs ---
 #define OBD2_REQUEST_ID  0x7DF  // Broadcast request

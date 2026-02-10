@@ -1,53 +1,49 @@
 #include "can_bus.h"
 #include "config.h"
 #include <Arduino.h>
-#include <SPI.h>
-#include <mcp_can.h>
-
-static MCP_CAN CAN0(MCP2515_CS_PIN);
+#include <driver/twai.h>
 
 bool can_init() {
-    Serial.printf("SPI pins: SCK=%d, MISO=%d, MOSI=%d, CS=%d, INT=%d\n",
-                  MCP2515_SCK_PIN, MCP2515_MISO_PIN, MCP2515_MOSI_PIN,
-                  MCP2515_CS_PIN, MCP2515_INT_PIN);
+    twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(CAN_TX_PIN, CAN_RX_PIN, TWAI_MODE_NORMAL);
+    twai_timing_config_t t_config = TWAI_TIMING_CONFIG_500KBITS();
+    twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
 
-    SPI.begin(MCP2515_SCK_PIN, MCP2515_MISO_PIN, MCP2515_MOSI_PIN, MCP2515_CS_PIN);
-
-    if (CAN0.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) != CAN_OK) {
-        Serial.println("MCP2515: init failed");
+    if (twai_driver_install(&g_config, &t_config, &f_config) != ESP_OK) {
+        Serial.println("TWAI driver install failed");
         return false;
     }
 
-    CAN0.setMode(MCP_NORMAL);
-    pinMode(MCP2515_INT_PIN, INPUT);
+    if (twai_start() != ESP_OK) {
+        Serial.println("TWAI start failed");
+        twai_driver_uninstall();
+        return false;
+    }
 
-    Serial.println("CAN bus initialized (MCP2515, 500 kbps)");
+    Serial.printf("CAN bus initialized (TWAI, 500 kbps) TX=%d RX=%d\n", CAN_TX_PIN, CAN_RX_PIN);
     return true;
 }
 
 bool can_send(uint32_t id, const uint8_t *data, uint8_t len) {
-    byte ret = CAN0.sendMsgBuf(id, 0, len, (byte *)data);
-    if (ret != CAN_OK) {
-        Serial.printf("CAN TX failed (id=0x%03lX): error %d\n", id, ret);
+    twai_message_t msg = {};
+    msg.identifier = id;
+    msg.data_length_code = len;
+    memcpy(msg.data, data, len);
+
+    if (twai_transmit(&msg, pdMS_TO_TICKS(100)) != ESP_OK) {
+        Serial.printf("CAN TX failed (id=0x%03lX)\n", id);
         return false;
     }
     return true;
 }
 
 bool can_receive(uint32_t &id, uint8_t *data, uint8_t &len, uint32_t timeout_ms) {
-    unsigned long start = millis();
+    twai_message_t msg;
 
-    while (millis() - start < timeout_ms) {
-        if (!digitalRead(MCP2515_INT_PIN)) {
-            long unsigned int rxId;
-            byte rxLen;
-            if (CAN0.readMsgBuf(&rxId, &rxLen, data) == CAN_OK) {
-                id = rxId;
-                len = rxLen;
-                return true;
-            }
-        }
-        delay(1);
+    if (twai_receive(&msg, pdMS_TO_TICKS(timeout_ms)) == ESP_OK) {
+        id = msg.identifier;
+        len = msg.data_length_code;
+        memcpy(data, msg.data, len);
+        return true;
     }
     return false;
 }

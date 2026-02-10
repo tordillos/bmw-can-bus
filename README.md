@@ -1,78 +1,60 @@
 # BMW F800GT CAN Bus Reader
 
-Lector OBD-II para BMW F800GT usando ESP32 HW-395 CP2102 (38 pines) y modulo MCP2515 + TJA1050.
-
-Configuracion de pines basada en [BMW-GS-Wonder-Wheel-map-zoomer](https://github.com/ianc99/BMW-GS-Wonder-Wheel-map-zoomer).
+Lector OBD-II para BMW F800GT usando ESP32 HW-395 CP2102 (38 pines) y transceiver SN65HVD230 con el controlador CAN nativo del ESP32 (TWAI).
 
 ## Hardware necesario
 
 - ESP32 HW-395 CP2102 38 pines
-- Modulo MCP2515 + TJA1050 (controlador CAN + transceiver)
-- 7 cables dupont hembra-hembra (usar cables de buena calidad o soldar)
-- 1 resistencia 4.7kΩ (recomendada para el cable SO)
+- Modulo SN65HVD230 (transceiver CAN 3.3V)
+- 4 cables dupont hembra-hembra (usar cables de buena calidad o soldar)
 - Cable USB con datos (no solo de carga)
 
 ## Conexiones
 
 ### Tabla de cableado
 
-Todos los cables van al **lado derecho** de la placa (con el USB arriba).
+| Pin ESP32 (etiqueta en placa) | Pin SN65HVD230 | Funcion    | Notas   |
+|-------------------------------|-----------------|------------|---------|
+| P4                            | CTX             | CAN TX     | Directo |
+| P5                            | CRX             | CAN RX     | Directo |
+| 3V3 (lado derecho)            | 3V3             | Alimentacion | Directo |
+| GND                           | GND             | Tierra     | Directo |
 
-| Pin ESP32 (etiqueta en placa) | Pin MCP2515 | Funcion      | Notas                          |
-|-------------------------------|-------------|--------------|--------------------------------|
-| P27                           | SI          | SPI MOSI     | Directo                        |
-| P14                           | SO          | SPI MISO     | Con resistencia 4.7kΩ en serie |
-| P26                           | SCK         | SPI Clock    | Directo                        |
-| P12                           | CS          | Chip Select  | Directo                        |
-| P25                           | INT         | Interrupcion | Directo                        |
-| 5V                            | VCC         | Alimentacion | Directo                        |
-| GND                           | GND         | Tierra       | Directo                        |
+Del SN65HVD230 a la moto:
 
-Del MCP2515 a la moto:
-
-| Pin MCP2515 | BMW F800GT (conector diag.) |
-|-------------|-----------------------------|
-| H           | CAN-H                       |
-| L           | CAN-L                       |
-
-### Resistencia en SO (MISO)
-
-El MCP2515 trabaja a 5V y su pin SO emite señales de 5V. Se recomienda una resistencia de 4.7kΩ en serie para proteger el ESP32:
-
-```
-MCP2515 SO ──── [4.7kΩ] ──── ESP32 P14
-```
-
-Vale cualquier resistencia entre 3.3kΩ y 10kΩ. Puede funcionar sin ella, pero no es recomendable a largo plazo.
+| Pin SN65HVD230 | BMW F800GT (conector diag.) |
+|-----------------|-----------------------------|
+| CANH            | CAN-H                       |
+| CANL            | CAN-L                       |
 
 ### Pinout ESP32 HW-395 (38 pines)
 
-Los pines marcados con `◄` son los que hay que conectar al MCP2515.
-**Todos van al lado derecho** de la placa:
+Los pines marcados con `►` son los que hay que conectar al SN65HVD230:
 
 ```
+                    ┌───────────┐
+              3V3   │          │  GND
+               EN   │          │  P23
+              SVP   │          │  P22
+              SVN   │          │  TX
+              P34   │          │  RX
+              P35   │          │  P21
+              P32   │          │  GND
+              P33   │          │  P19
+              P25   │  HW-395 │  P18
+              P26   │          │  P5   ◄── CRX
+              P27   │          │  P17
+              P14   │          │  P16
+              P12   │          │  P4   ◄── CTX
+  GND ──►     GND   │          │  P0
+              P13   │          │  P2
+              SD2   │          │  P15
+              SD3   │          │  SD1
+              CMD   │          │  SD0
+               5V   │          │  CLK
+                    └────┤├────┘
                          USB
-                    ┌────┤├────┐
-              CLK   │          │  5V     ◄── a VCC
-              SD0   │          │  CMD
-              SD1   │          │  SD3
-              P15   │          │  SD2
-               P2   │          │  P13
-               P0   │          │  GND    ◄── a GND
-               P4   │  HW-395 │  P12    ◄── a CS
-              P16   │          │  P14    ◄── a SO (con 4.7kΩ)
-              P17   │          │  P27    ◄── a SI
-               P5   │          │  P26    ◄── a SCK
-              P18   │          │  P25    ◄── a INT
-              P19   │          │  P33
-              GND   │          │  P32
-              P21   │          │  P35
-               RX   │          │  P34
-               TX   │          │  SVN
-              P22   │          │  SVP
-              P23   │          │  EN
-              GND   │          │  3V3
-                    └───────────┘
+  3V3 ──► 3V3 (lado derecho, arriba)
 ```
 
 ### Calidad de los cables
@@ -122,7 +104,7 @@ Deberia aparecer algo como `/dev/cu.usbserial-0001`.
 pio run
 ```
 
-La primera vez descargara el toolchain de ESP32 y la libreria MCP_CAN automaticamente.
+La primera vez descargara el toolchain de ESP32 automaticamente.
 
 ### 2. Flashear al ESP32
 
@@ -170,21 +152,18 @@ Para ver la salida del ESP32 en tiempo real:
 pio device monitor
 ```
 
-Salida esperada con el MCP2515 conectado (sin la moto):
+Salida esperada con el SN65HVD230 conectado (sin la moto):
 
 ```
 === BMW F800GT CAN Bus Reader ===
-SPI pins: SCK=26, MISO=14, MOSI=27, CS=12, INT=25
-Entering Configuration Mode Successful!
-Setting Baudrate Successful!
-CAN bus initialized (MCP2515, 500 kbps)
+CAN bus initialized (TWAI, 500 kbps) TX=4 RX=5
 --- Reading OBD-II PIDs ---
 PID 0x05: no response
 PID 0x0C: no response
 ...
 ```
 
-Los "no response" son normales sin la moto conectada. Al conectar H y L al conector de diagnostico de la BMW F800GT con el motor encendido, deberian aparecer los valores.
+Los "no response" son normales sin la moto conectada. Al conectar CANH y CANL al conector de diagnostico de la BMW F800GT con el motor encendido, deberian aparecer los valores.
 
 Salida esperada con la moto conectada:
 
@@ -207,17 +186,6 @@ Fuel Level:     72.5%
 | 0x0F | Temperatura aire admision|
 | 0x11 | Posicion acelerador      |
 | 0x2F | Nivel combustible        |
-
-## Cristal del MCP2515
-
-El codigo asume un cristal de **8 MHz**. Mira el componente metalico pequeño en el modulo MCP2515:
-
-- Si dice `8.000` u `8M` → no cambiar nada
-- Si dice `16.000` → cambiar en `include/config.h`:
-
-```c
-#define MCP2515_CRYSTAL MCP_16MHZ
-```
 
 ## Notas sobre BMW F800GT
 
