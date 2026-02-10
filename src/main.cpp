@@ -2,11 +2,14 @@
 #include "config.h"
 #include "can_bus.h"
 #include "obd2.h"
+#include "bt_serial.h"
 
 void setup() {
     Serial.begin(115200);
     delay(500);
     Serial.println("\n=== BMW F800GT CAN Bus Reader ===");
+
+    bt_init();
 
     if (!can_init()) {
         Serial.println("ERROR: CAN bus init failed. Check wiring.");
@@ -16,6 +19,9 @@ void setup() {
 
 void loop() {
     Serial.println("--- Reading OBD-II PIDs ---");
+    if (bt_connected()) {
+        SerialBT.println("--- Reading OBD-II PIDs ---");
+    }
 
     for (uint8_t i = 0; i < NUM_PIDS; i++) {
         uint8_t pid = PIDS_TO_POLL[i];
@@ -29,6 +35,9 @@ void loop() {
                 obd2_print_value(resp_pid, data, data_len);
             } else {
                 Serial.printf("PID 0x%02X: no response\n", pid);
+                if (bt_connected()) {
+                    SerialBT.printf("PID 0x%02X: no response\n", pid);
+                }
             }
         }
 
@@ -36,5 +45,8 @@ void loop() {
     }
 
     Serial.println();
+    if (bt_connected()) {
+        SerialBT.println();
+    }
     delay(POLL_INTERVAL_MS);
 }
